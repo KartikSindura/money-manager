@@ -31,9 +31,10 @@ func NewApplication() (*Application, error) {
 
 	// stores
 	postgresTransactionStore := store.NewPostgresTransactionStore(pgDb)
+	postgresCategoryStore := store.NewPostgresCategoryStore(pgDb)
 
 	// handlers
-	transactionHandler := api.NewTransactionHandler(postgresTransactionStore, logger)
+	transactionHandler := api.NewTransactionHandler(postgresTransactionStore, postgresCategoryStore, logger)
 
 	app := &Application{
 		Logger:             logger,

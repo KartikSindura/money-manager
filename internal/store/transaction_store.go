@@ -7,33 +7,39 @@ import (
 )
 
 type Expense struct {
-	ID        int64      `json:"id"`
-	Amount    float64    `json:"amount"`
-	Note      string     `json:"note"`
-	Date      *time.Time `json:"date"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	ID         int64      `json:"id"`
+	Amount     float64    `json:"amount"`
+	CategoryID int64      `json:"category_id"`
+	Category   *string    `json:"category"`
+	Note       string     `json:"note"`
+	Date       *time.Time `json:"date"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
 type Income struct {
-	ID        int64      `json:"id"`
-	Amount    float64    `json:"amount"`
-	Source    string     `json:"source"`
-	Note      string     `json:"note"`
-	Date      *time.Time `json:"date"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	ID         int64      `json:"id"`
+	Amount     float64    `json:"amount"`
+	CategoryID int64      `json:"category_id"`
+	Category   *string    `json:"category"`
+	Source     string     `json:"source"`
+	Note       string     `json:"note"`
+	Date       *time.Time `json:"date"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
 type Transaction struct {
-	ID        int64     `json:"id"`
-	Amount    float64   `json:"amount"`
-	Note      string    `json:"note"`
-	Source    *string   `json:"source,omitempty"` // for incomes
-	Type      string    `json:"type"`             // income or expense
-	Date      time.Time `json:"date"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID         int64     `json:"id"`
+	Amount     float64   `json:"amount"`
+	CategoryID int64     `json:"category_id"`
+	Category   *string   `json:"category"`
+	Note       string    `json:"note"`
+	Source     *string   `json:"source"` // for incomes
+	Type       string    `json:"type"`   // income or expense
+	Date       time.Time `json:"date"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type PostgresTransactionStore struct {
@@ -73,11 +79,11 @@ func (pg *PostgresTransactionStore) CreateExpense(expense *Expense) (*Expense, e
 	defer tx.Rollback()
 
 	query := `
-	INSERT INTO expenses (amount, note, date)
-	VALUES ($1, $2, $3)
+	INSERT INTO expenses (amount, category_id, note, date)
+	VALUES ($1, $2, $3, $4)
 	RETURNING id, created_at, updated_at
 	`
-	err = tx.QueryRow(query, expense.Amount, expense.Note, expense.Date).Scan(&expense.ID, &expense.CreatedAt, &expense.UpdatedAt)
+	err = tx.QueryRow(query, expense.Amount, expense.CategoryID, expense.Note, expense.Date).Scan(&expense.ID, &expense.CreatedAt, &expense.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -92,11 +98,11 @@ func (pg *PostgresTransactionStore) GetExpenseByID(id int64) (*Expense, error) {
 	expense := &Expense{}
 
 	query := `
-	SELECT id, amount, note, date, created_at, updated_at
+	SELECT id, amount, category_id, note, date, created_at, updated_at
 	FROM expenses
 	WHERE id = $1
 	`
-	err := pg.db.QueryRow(query, id).Scan(&expense.ID, &expense.Amount, &expense.Note, &expense.Date, &expense.CreatedAt, &expense.UpdatedAt)
+	err := pg.db.QueryRow(query, id).Scan(&expense.ID, &expense.Amount, &expense.CategoryID, &expense.Note, &expense.Date, &expense.CreatedAt, &expense.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -112,10 +118,10 @@ func (pg *PostgresTransactionStore) UpdateExpense(expense *Expense) error {
 	defer tx.Rollback()
 	query := `
     UPDATE expenses
-    SET amount = $1, note = $2, date = $3, updated_at = $4
-    WHERE id = $5
+    SET amount = $1, category_id = $2, note = $3, date = $4, updated_at = $5
+    WHERE id = $6
     `
-	result, err := tx.Exec(query, expense.Amount, expense.Note, expense.Date, expense.UpdatedAt, expense.ID)
+	result, err := tx.Exec(query, expense.Amount, expense.CategoryID, expense.Note, expense.Date, expense.UpdatedAt, expense.ID)
 	if err != nil {
 		return err
 	}
@@ -161,11 +167,11 @@ func (pg *PostgresTransactionStore) CreateIncome(income *Income) (*Income, error
 	defer tx.Rollback()
 
 	query := `
-    INSERT INTO incomes (amount, source, note, date)
-    VALUES ($1, $2, $3, $4)
+    INSERT INTO incomes (amount, category_id, source, note, date)
+    VALUES ($1, $2, $3, $4, $5)
     RETURNING id, created_at, updated_at
 	`
-	err = pg.db.QueryRow(query, income.Amount, income.Source, income.Note, income.Date).Scan(&income.ID, &income.CreatedAt, &income.UpdatedAt)
+	err = pg.db.QueryRow(query, income.Amount, income.CategoryID, income.Source, income.Note, income.Date).Scan(&income.ID, &income.CreatedAt, &income.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -180,11 +186,11 @@ func (pg *PostgresTransactionStore) GetIncomeByID(id int64) (*Income, error) {
 	income := &Income{}
 
 	query := `
-    SELECT id, amount, source, note, date, created_at, updated_at
+    SELECT id, amount, category_id, source, note, date, created_at, updated_at
     FROM incomes
     WHERE id = $1
     `
-	err := pg.db.QueryRow(query, id).Scan(&income.ID, &income.Amount, &income.Source, &income.Note, &income.Date, &income.CreatedAt, &income.UpdatedAt)
+	err := pg.db.QueryRow(query, id).Scan(&income.ID, &income.Amount, &income.CategoryID, &income.Source, &income.Note, &income.Date, &income.CreatedAt, &income.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -200,10 +206,10 @@ func (pg *PostgresTransactionStore) UpdateIncome(income *Income) error {
 	defer tx.Rollback()
 	query := `
     UPDATE incomes
-    SET amount = $1, source = $2, note = $3, date = $4, updated_at = $5
-    WHERE id = $6
+    SET amount = $1, category_id = $2, source = $3, note = $4, date = $5, updated_at = $6
+    WHERE id = $7
     `
-	result, err := tx.Exec(query, income.Amount, income.Source, income.Note, income.Date, income.UpdatedAt, income.ID)
+	result, err := tx.Exec(query, income.Amount, income.CategoryID, income.Source, income.Note, income.Date, income.UpdatedAt, income.ID)
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
@@ -248,7 +254,7 @@ func (pg *PostgresTransactionStore) GetExpenses(limit int, offset int) ([]Expens
 	expenses := []Expense{}
 	for rows.Next() {
 		expense := Expense{}
-		err := rows.Scan(&expense.ID, &expense.Amount, &expense.Note, &expense.Date, &expense.CreatedAt, &expense.UpdatedAt)
+		err := rows.Scan(&expense.ID, &expense.Amount, &expense.CategoryID, &expense.Note, &expense.Date, &expense.CreatedAt, &expense.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -272,7 +278,7 @@ func (pg *PostgresTransactionStore) GetIncomes(limit int, offset int) ([]Income,
 	incomes := []Income{}
 	for rows.Next() {
 		income := Income{}
-		err := rows.Scan(&income.ID, &income.Amount, &income.Source, &income.Note, &income.Date, &income.CreatedAt, &income.UpdatedAt)
+		err := rows.Scan(&income.ID, &income.Amount, &income.CategoryID, &income.Source, &income.Note, &income.Date, &income.CreatedAt, &income.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -283,7 +289,7 @@ func (pg *PostgresTransactionStore) GetIncomes(limit int, offset int) ([]Income,
 
 func (pg *PostgresTransactionStore) GetTransactions(limit int, offset int, from *time.Time, to *time.Time, month *int, year *int, _type *string) ([]Transaction, error) {
 	query := `
-	SELECT id, amount, note, NULL AS source, 'expense' AS type, date, created_at, updated_at
+	SELECT id, amount, category_id, note, NULL AS source, 'expense' AS type, date, created_at, updated_at
 	FROM expenses
 	WHERE ($3::timestamp IS NULL OR date >= $3)
 	AND ($4::timestamp IS NULL OR date <= $4)
@@ -293,7 +299,7 @@ func (pg *PostgresTransactionStore) GetTransactions(limit int, offset int, from 
 
 	UNION ALL
 
-	SELECT id, amount, note, source, 'income' AS type, date, created_at, updated_at
+	SELECT id, amount, category_id, note, source, 'income' AS type, date, created_at, updated_at
 	FROM incomes
 	WHERE ($3::timestamp IS NULL OR date >= $3)
 	AND ($4::timestamp IS NULL OR date <= $4)
@@ -313,7 +319,7 @@ func (pg *PostgresTransactionStore) GetTransactions(limit int, offset int, from 
 	transactions := []Transaction{}
 	for rows.Next() {
 		transaction := Transaction{}
-		err := rows.Scan(&transaction.ID, &transaction.Amount, &transaction.Note, &transaction.Source, &transaction.Type, &transaction.Date, &transaction.CreatedAt, &transaction.UpdatedAt)
+		err := rows.Scan(&transaction.ID, &transaction.Amount, &transaction.CategoryID, &transaction.Note, &transaction.Source, &transaction.Type, &transaction.Date, &transaction.CreatedAt, &transaction.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -322,6 +328,7 @@ func (pg *PostgresTransactionStore) GetTransactions(limit int, offset int, from 
 	return transactions, nil
 }
 
+// FIX: sum on 0 entries
 func (pg *PostgresTransactionStore) GetTotalExpenses() (float64, error) {
 	query := `
     SELECT SUM(amount) FROM expenses
@@ -334,6 +341,7 @@ func (pg *PostgresTransactionStore) GetTotalExpenses() (float64, error) {
 	return total, nil
 }
 
+// FIX: sum on 0 entries
 func (pg *PostgresTransactionStore) GetTotalIncomes() (float64, error) {
 	query := `
     SELECT SUM(amount) FROM incomes

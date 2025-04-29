@@ -26,10 +26,8 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 
 	r.Get("/transactions", app.TransactionHandler.HandleGetTransactions)
 	// TODO: recurring expenses
-	// TODO: add a category field in expenses
 	// TODO: listing expenses by categories
 	// TODO: auth
-	// TODO: pagination
 
 	return r
 }

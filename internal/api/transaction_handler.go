@@ -12,12 +12,14 @@ import (
 
 type TransactionHandler struct {
 	transactionStore store.TransactionStore
+	categoryStore    store.CategoryStore
 	logger           *log.Logger
 }
 
-func NewTransactionHandler(transactionStore store.TransactionStore, logger *log.Logger) *TransactionHandler {
+func NewTransactionHandler(transactionStore store.TransactionStore, categoryStore store.CategoryStore, logger *log.Logger) *TransactionHandler {
 	return &TransactionHandler{
 		transactionStore: transactionStore,
+		categoryStore:    categoryStore,
 		logger:           logger,
 	}
 }
@@ -30,11 +32,31 @@ func (h *TransactionHandler) HandleCreateExpense(w http.ResponseWriter, r *http.
 		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "error decoding expense"})
 		return
 	}
+
+	// if category is not provided, set it to "Uncategorized"
+	categoryName := "Uncategorized"
+	if expense.Category != nil {
+		categoryName = *expense.Category
+	}
+
+	category := &store.Category{Name: categoryName}
+
+	// get category id
+	category, err = h.categoryStore.FindOrCreateCategoryByName(category)
+	if err != nil {
+		h.logger.Printf("Error: HandleCreateExpense: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting category"})
+		return
+	}
+
+	expense.CategoryID = category.ID
+
 	// if date is not provided, set it to now
 	if expense.Date == nil {
 		now := time.Now()
 		expense.Date = &now
 	}
+
 	expense, err = h.transactionStore.CreateExpense(expense)
 	if err != nil {
 		h.logger.Printf("Error: HandleCreateExpense: %v", err)
@@ -82,9 +104,11 @@ func (h *TransactionHandler) HandleUpdateExpense(w http.ResponseWriter, r *http.
 	}
 
 	var updatedExpenseRequest struct {
-		Amount *float64   `json:"amount"`
-		Note   *string    `json:"note"`
-		Date   *time.Time `json:"date"`
+		Amount     *float64   `json:"amount"`
+		Category   *string    `json:"category"`
+		CategoryID int64      `json:"category_id"`
+		Note       *string    `json:"note"`
+		Date       *time.Time `json:"date"`
 	}
 
 	err = json.NewDecoder(r.Body).Decode(&updatedExpenseRequest)
@@ -103,6 +127,24 @@ func (h *TransactionHandler) HandleUpdateExpense(w http.ResponseWriter, r *http.
 	if updatedExpenseRequest.Amount != nil {
 		existingExpense.Amount = *updatedExpenseRequest.Amount
 	}
+
+	var categoryName string
+	if updatedExpenseRequest.Category != nil {
+		categoryName = *updatedExpenseRequest.Category
+	} else {
+		categoryName = "Uncategorized"
+	}
+
+	category := &store.Category{
+		Name: categoryName,
+	}
+	category, err = h.categoryStore.FindOrCreateCategoryByName(category)
+	if err != nil {
+		h.logger.Printf("Error: HandleUpdateExpense: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting category"})
+		return
+	}
+	existingExpense.CategoryID = category.ID
 
 	if updatedExpenseRequest.Note != nil {
 		existingExpense.Note = *updatedExpenseRequest.Note
@@ -171,11 +213,29 @@ func (h *TransactionHandler) HandleCreateIncome(w http.ResponseWriter, r *http.R
 		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "error decoding income"})
 		return
 	}
+
+	categoryName := "Uncategorized"
+	if income.Category != nil {
+		categoryName = *income.Category
+	}
+	category := &store.Category{
+		Name: categoryName,
+	}
+	category, err = h.categoryStore.FindOrCreateCategoryByName(category)
+	if err != nil {
+		h.logger.Printf("Error: HandleCreateIncome: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting category"})
+		return
+	}
+
+	income.CategoryID = category.ID
+
 	// if date is not provided, set it to now
 	if income.Date == nil {
 		now := time.Now()
 		income.Date = &now
 	}
+
 	income, err = h.transactionStore.CreateIncome(income)
 	if err != nil {
 		h.logger.Printf("Error: HandleCreateIncome: %v", err)
@@ -208,6 +268,7 @@ func (h *TransactionHandler) HandleUpdateIncome(w http.ResponseWriter, r *http.R
 		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "invalid id parameter"})
 		return
 	}
+
 	existingIncome, err := h.transactionStore.GetIncomeByID(id)
 	if err != nil {
 		h.logger.Printf("Error: HandleUpdateIncome: %v", err)
@@ -216,10 +277,12 @@ func (h *TransactionHandler) HandleUpdateIncome(w http.ResponseWriter, r *http.R
 	}
 
 	var updatedIncomeRequest struct {
-		Amount *float64   `json:"amount"`
-		Note   *string    `json:"note"`
-		Source *string    `json:"source"`
-		Date   *time.Time `json:"date"`
+		Amount     *float64   `json:"amount"`
+		Category   *string    `json:"category"`
+		CategoryID int64      `json:"category_id"`
+		Note       *string    `json:"note"`
+		Source     *string    `json:"source"`
+		Date       *time.Time `json:"date"`
 	}
 
 	err = json.NewDecoder(r.Body).Decode(&updatedIncomeRequest)
@@ -238,6 +301,24 @@ func (h *TransactionHandler) HandleUpdateIncome(w http.ResponseWriter, r *http.R
 	if updatedIncomeRequest.Amount != nil {
 		existingIncome.Amount = *updatedIncomeRequest.Amount
 	}
+
+	var categoryName string
+	if updatedIncomeRequest.Category != nil {
+		categoryName = *updatedIncomeRequest.Category
+	} else {
+		categoryName = "Uncategorized"
+	}
+
+	category := &store.Category{
+		Name: categoryName,
+	}
+	category, err = h.categoryStore.FindOrCreateCategoryByName(category)
+	if err != nil {
+		h.logger.Printf("Error: HandleUpdateIncome: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting category"})
+		return
+	}
+	existingIncome.CategoryID = category.ID
 
 	if updatedIncomeRequest.Note != nil {
 		existingIncome.Note = *updatedIncomeRequest.Note

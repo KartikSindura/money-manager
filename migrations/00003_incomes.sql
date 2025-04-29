@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS incomes (
   id BIGSERIAL PRIMARY KEY,
   -- user_id
   amount FLOAT NOT NULL,
-  -- category TEXT,
+  category_id INT REFERENCES categories(id),
   source TEXT,
   note TEXT,
   date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
