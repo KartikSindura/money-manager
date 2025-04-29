@@ -14,22 +14,22 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	r.Get("/expenses/{id}", app.TransactionHandler.HandleGetExpenseByID)
 	r.Put("/expenses/{id}", app.TransactionHandler.HandleUpdateExpense)
 	r.Delete("/expenses/{id}", app.TransactionHandler.HandleDeleteExpense)
+	r.Get("/expenses", app.TransactionHandler.HandleGetExpenses)
+	r.Get("/total-expenses", app.TransactionHandler.HandleGetTotalExpenses)
 
 	r.Post("/incomes", app.TransactionHandler.HandleCreateIncome)
 	r.Get("/incomes/{id}", app.TransactionHandler.HandleGetIncomeByID)
 	r.Put("/incomes/{id}", app.TransactionHandler.HandleUpdateIncome)
 	r.Delete("/incomes/{id}", app.TransactionHandler.HandleDeleteIncome)
-	// TODO: list all transactions
-	// TODO: filter transactions by date
-	// TODO: total income
-	// TODO: total expense
-	// TODO: summarize transactions for a month/year
+	r.Get("/incomes", app.TransactionHandler.HandleGetIncomes)
+	r.Get("/total-incomes", app.TransactionHandler.HandleGetTotalIncomes)
+
+	r.Get("/transactions", app.TransactionHandler.HandleGetTransactions)
 	// TODO: recurring expenses
 	// TODO: add a category field in expenses
 	// TODO: listing expenses by categories
 	// TODO: auth
 	// TODO: pagination
-	// TODO:
 
 	return r
 }

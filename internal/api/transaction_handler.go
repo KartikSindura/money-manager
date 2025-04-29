@@ -30,6 +30,11 @@ func (h *TransactionHandler) HandleCreateExpense(w http.ResponseWriter, r *http.
 		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "error decoding expense"})
 		return
 	}
+	// if date is not provided, set it to now
+	if expense.Date == nil {
+		now := time.Now()
+		expense.Date = &now
+	}
 	expense, err = h.transactionStore.CreateExpense(expense)
 	if err != nil {
 		h.logger.Printf("Error: HandleCreateExpense: %v", err)
@@ -102,12 +107,13 @@ func (h *TransactionHandler) HandleUpdateExpense(w http.ResponseWriter, r *http.
 	if updatedExpenseRequest.Note != nil {
 		existingExpense.Note = *updatedExpenseRequest.Note
 	}
-	// date must not be nil
+	// if date is not provided, set it to now
 	if updatedExpenseRequest.Date == nil {
-		existingExpense.Date = time.Now()
+		now := time.Now()
+		existingExpense.Date = &now
 	}
 	if updatedExpenseRequest.Date != nil {
-		existingExpense.Date = *updatedExpenseRequest.Date
+		existingExpense.Date = updatedExpenseRequest.Date
 	}
 	existingExpense.UpdatedAt = time.Now()
 
@@ -136,6 +142,27 @@ func (h *TransactionHandler) HandleDeleteExpense(w http.ResponseWriter, r *http.
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"status": "expense deleted"})
 }
 
+func (h *TransactionHandler) HandleGetExpenses(w http.ResponseWriter, r *http.Request) {
+	limit, offset := utils.GetLimitOffset(r)
+	expenses, err := h.transactionStore.GetExpenses(limit, offset)
+	if err != nil {
+		h.logger.Printf("Error: HandleGetExpenses: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting expenses"})
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"expenses": expenses})
+}
+
+func (h *TransactionHandler) HandleGetTotalExpenses(w http.ResponseWriter, r *http.Request) {
+	totalExpenses, err := h.transactionStore.GetTotalExpenses()
+	if err != nil {
+		h.logger.Printf("Error: HandleGetTotalExpenses: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting total expenses"})
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"totalExpenses": totalExpenses})
+}
+
 func (h *TransactionHandler) HandleCreateIncome(w http.ResponseWriter, r *http.Request) {
 	income := &store.Income{}
 	err := json.NewDecoder(r.Body).Decode(&income)
@@ -143,6 +170,11 @@ func (h *TransactionHandler) HandleCreateIncome(w http.ResponseWriter, r *http.R
 		h.logger.Printf("Error: decodingHandleCreateIncome: %v", err)
 		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "error decoding income"})
 		return
+	}
+	// if date is not provided, set it to now
+	if income.Date == nil {
+		now := time.Now()
+		income.Date = &now
 	}
 	income, err = h.transactionStore.CreateIncome(income)
 	if err != nil {
@@ -214,12 +246,13 @@ func (h *TransactionHandler) HandleUpdateIncome(w http.ResponseWriter, r *http.R
 	if updatedIncomeRequest.Source != nil {
 		existingIncome.Source = *updatedIncomeRequest.Source
 	}
-	// date must not be nil
+	// if date is not provided, set it to now
 	if updatedIncomeRequest.Date == nil {
-		existingIncome.Date = time.Now()
+		now := time.Now()
+		existingIncome.Date = &now
 	}
 	if updatedIncomeRequest.Date != nil {
-		existingIncome.Date = *updatedIncomeRequest.Date
+		existingIncome.Date = updatedIncomeRequest.Date
 	}
 	existingIncome.UpdatedAt = time.Now()
 
@@ -246,4 +279,42 @@ func (h *TransactionHandler) HandleDeleteIncome(w http.ResponseWriter, r *http.R
 		return
 	}
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"status": "income deleted"})
+}
+
+func (h *TransactionHandler) HandleGetIncomes(w http.ResponseWriter, r *http.Request) {
+	limit, offset := utils.GetLimitOffset(r)
+	incomes, err := h.transactionStore.GetIncomes(limit, offset)
+	if err != nil {
+		h.logger.Printf("Error: HandleGetIncomes: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting incomes"})
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"incomes": incomes})
+}
+
+func (h *TransactionHandler) HandleGetTotalIncomes(w http.ResponseWriter, r *http.Request) {
+	totalIncomes, err := h.transactionStore.GetTotalIncomes()
+	if err != nil {
+		h.logger.Printf("Error: HandleGetTotalIncomes: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting total incomes"})
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"totalIncomes": totalIncomes})
+}
+
+func (h *TransactionHandler) HandleGetTransactions(w http.ResponseWriter, r *http.Request) {
+	limit, offset := utils.GetLimitOffset(r)
+	from, to, month, year, _type, err := utils.GetTransactionQueryParams(r)
+	if err != nil {
+		h.logger.Printf("Error: HandleGetTransactions: %v", err)
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "error parsing transaction query params"})
+		return
+	}
+	transactions, err := h.transactionStore.GetTransactions(limit, offset, from, to, month, year, _type)
+	if err != nil {
+		h.logger.Printf("Error: HandleGetTransactions: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting transactions"})
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"transactions": transactions})
 }
