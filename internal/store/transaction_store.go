@@ -67,7 +67,7 @@ type TransactionStore interface {
 	GetIncomes(limit int, offset int) ([]Income, error)
 	GetTotalIncomes() (float64, error)
 
-	GetTransactions(limit int, offset int, from *time.Time, to *time.Time, month *int, year *int, _type *string) ([]Transaction, error)
+	GetTransactions(limit int, offset int, from *time.Time, to *time.Time, month *int, year *int, _type *string, category *int64) ([]Transaction, error)
 }
 
 func (pg *PostgresTransactionStore) CreateExpense(expense *Expense) (*Expense, error) {
@@ -287,7 +287,7 @@ func (pg *PostgresTransactionStore) GetIncomes(limit int, offset int) ([]Income,
 	return incomes, nil
 }
 
-func (pg *PostgresTransactionStore) GetTransactions(limit int, offset int, from *time.Time, to *time.Time, month *int, year *int, _type *string) ([]Transaction, error) {
+func (pg *PostgresTransactionStore) GetTransactions(limit int, offset int, from *time.Time, to *time.Time, month *int, year *int, _type *string, categoryID *int64) ([]Transaction, error) {
 	query := `
 	SELECT id, amount, category_id, note, NULL AS source, 'expense' AS type, date, created_at, updated_at
 	FROM expenses
@@ -296,6 +296,7 @@ func (pg *PostgresTransactionStore) GetTransactions(limit int, offset int, from 
 	AND ($5::int IS NULL OR EXTRACT(MONTH FROM date) = $5)
 	AND ($6::int IS NULL OR EXTRACT(YEAR FROM date) = $6)
 	AND ($7::text IS NULL OR $7 = 'expense')
+	AND ($8::int IS NULL OR $8 = category_id)
 
 	UNION ALL
 
@@ -306,11 +307,12 @@ func (pg *PostgresTransactionStore) GetTransactions(limit int, offset int, from 
 	AND ($5::int IS NULL OR EXTRACT(MONTH FROM date) = $5)
 	AND ($6::int IS NULL OR EXTRACT(YEAR FROM date) = $6)
 	AND ($7::text IS NULL OR $7 = 'income')
+    AND ($8::int IS NULL OR $8 = category_id)
 
 	ORDER BY date DESC
 	LIMIT $1 OFFSET $2
 	`
-	rows, err := pg.db.Query(query, limit, offset, from, to, month, year, _type)
+	rows, err := pg.db.Query(query, limit, offset, from, to, month, year, _type, categoryID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to query transactions: %v", err)
 	}

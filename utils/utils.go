@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -57,7 +58,7 @@ func GetLimitOffset(r *http.Request) (limit, offset int) {
 	return limit, offset
 }
 
-func GetTransactionQueryParams(r *http.Request) (*time.Time, *time.Time, *int, *int, *string, error) {
+func GetTransactionQueryParams(r *http.Request) (*time.Time, *time.Time, *int, *int, *string, *string, error) {
 	// /transactions?from=2022-01-01&to=2022-01-31&month=1&year=2022&type=expense
 
 	// this gets an empty string if key is not found
@@ -66,41 +67,48 @@ func GetTransactionQueryParams(r *http.Request) (*time.Time, *time.Time, *int, *
 	monthStr := r.URL.Query().Get("month")
 	yearStr := r.URL.Query().Get("year")
 	typeStr := r.URL.Query().Get("type")
+	categoryStr := r.URL.Query().Get("category")
 
 	var from, to *time.Time
 	var month, year *int
-	var _type *string
+	var _type, categoryName *string
 
 	if fromStr != "" {
 		t, err := time.Parse(time.RFC3339, fromStr)
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, err
 		}
 		from = &t
 	}
 	if toStr != "" {
 		t, err := time.Parse(time.RFC3339, toStr)
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, err
 		}
 		to = &t
 	}
 	if monthStr != "" {
 		m, err := strconv.Atoi(monthStr)
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, err
 		}
 		month = &m
 	}
 	if yearStr != "" {
 		y, err := strconv.Atoi(yearStr)
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, err
 		}
 		year = &y
 	}
 	if typeStr != "" {
 		_type = &typeStr
 	}
-	return from, to, month, year, _type, nil
+
+	if categoryStr != "" {
+		lower := strings.ToLower(categoryStr)
+		categoryName = &lower
+	}
+
+	return from, to, month, year, _type, categoryName, nil
 }

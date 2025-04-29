@@ -23,6 +23,7 @@ func NewPostgresCategoryStore(db *sql.DB) *PostgresCategoryStore {
 
 type CategoryStore interface {
 	FindOrCreateCategoryByName(category *Category) (*Category, error)
+	GetCategoryIDByName(name *string) (*int64, error)
 	// GetCategoryByID(id int64) (*Category, error)
 	// UpdateCategory(category *Category) error
 	DeleteCategoryByID(id int64) error
@@ -48,6 +49,16 @@ func (p *PostgresCategoryStore) FindOrCreateCategoryByName(category *Category) (
 		return nil, err
 	}
 	return category, nil
+}
+
+func (p *PostgresCategoryStore) GetCategoryIDByName(name *string) (*int64, error) {
+	query := `SELECT id FROM categories WHERE name = $1`
+	var id int64
+	err := p.db.QueryRow(query, name).Scan(&id)
+	if err != nil {
+		return nil, err
+	}
+	return &id, nil
 }
 
 func (p *PostgresCategoryStore) DeleteCategoryByID(id int64) error {

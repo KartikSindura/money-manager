@@ -1,9 +1,11 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/KartikSindura/money/internal/store"
@@ -34,9 +36,9 @@ func (h *TransactionHandler) HandleCreateExpense(w http.ResponseWriter, r *http.
 	}
 
 	// if category is not provided, set it to "Uncategorized"
-	categoryName := "Uncategorized"
+	categoryName := "uncategorized"
 	if expense.Category != nil {
-		categoryName = *expense.Category
+		categoryName = strings.ToLower(*expense.Category)
 	}
 
 	category := &store.Category{Name: categoryName}
@@ -130,9 +132,9 @@ func (h *TransactionHandler) HandleUpdateExpense(w http.ResponseWriter, r *http.
 
 	var categoryName string
 	if updatedExpenseRequest.Category != nil {
-		categoryName = *updatedExpenseRequest.Category
+		categoryName = strings.ToLower(*updatedExpenseRequest.Category)
 	} else {
-		categoryName = "Uncategorized"
+		categoryName = "uncategorized"
 	}
 
 	category := &store.Category{
@@ -214,9 +216,9 @@ func (h *TransactionHandler) HandleCreateIncome(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	categoryName := "Uncategorized"
+	categoryName := "uncategorized"
 	if income.Category != nil {
-		categoryName = *income.Category
+		categoryName = strings.ToLower(*income.Category)
 	}
 	category := &store.Category{
 		Name: categoryName,
@@ -304,9 +306,9 @@ func (h *TransactionHandler) HandleUpdateIncome(w http.ResponseWriter, r *http.R
 
 	var categoryName string
 	if updatedIncomeRequest.Category != nil {
-		categoryName = *updatedIncomeRequest.Category
+		categoryName = strings.ToLower(*updatedIncomeRequest.Category)
 	} else {
-		categoryName = "Uncategorized"
+		categoryName = "uncategorized"
 	}
 
 	category := &store.Category{
@@ -385,13 +387,29 @@ func (h *TransactionHandler) HandleGetTotalIncomes(w http.ResponseWriter, r *htt
 
 func (h *TransactionHandler) HandleGetTransactions(w http.ResponseWriter, r *http.Request) {
 	limit, offset := utils.GetLimitOffset(r)
-	from, to, month, year, _type, err := utils.GetTransactionQueryParams(r)
+	from, to, month, year, _type, categoryName, err := utils.GetTransactionQueryParams(r)
 	if err != nil {
 		h.logger.Printf("Error: HandleGetTransactions: %v", err)
 		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "error parsing transaction query params"})
 		return
 	}
-	transactions, err := h.transactionStore.GetTransactions(limit, offset, from, to, month, year, _type)
+
+	var categoryID *int64
+	if categoryName != nil {
+		var err error
+		categoryID, err = h.categoryStore.GetCategoryIDByName(categoryName)
+		if err == sql.ErrNoRows {
+			h.logger.Printf("Error: HandleGetTransactions: %v", err)
+			utils.WriteJSON(w, http.StatusNotFound, utils.Envelope{"error": "category not found"})
+			return
+		}
+		if err != nil {
+			h.logger.Printf("Error: HandleGetTransactions: %v", err)
+			utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "fetching category_id by name failed"})
+			return
+		}
+	}
+	transactions, err := h.transactionStore.GetTransactions(limit, offset, from, to, month, year, _type, categoryID)
 	if err != nil {
 		h.logger.Printf("Error: HandleGetTransactions: %v", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting transactions"})
