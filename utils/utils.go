@@ -3,12 +3,15 @@ package utils
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-jwt/jwt/v4"
 )
 
 type Envelope map[string]any
@@ -111,4 +114,47 @@ func GetTransactionQueryParams(r *http.Request) (*time.Time, *time.Time, *int, *
 	}
 
 	return from, to, month, year, _type, categoryName, nil
+}
+
+const (
+	ScopeAuth = "authentication"
+)
+
+var secretKey = []byte(os.Getenv("JWT_SECRET"))
+
+type Claims struct {
+	UserID int64 `json:"user_id"`
+	jwt.RegisteredClaims
+}
+
+func CreateToken(user_id int64) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256,
+		jwt.MapClaims{
+			"user_id": user_id,
+			"exp":     time.Now().Add(time.Hour * 24).Unix(),
+		})
+
+	tokenString, err := token.SignedString(secretKey)
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
+}
+
+func ValidateJWT(tokenString string) (*Claims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (any, error) {
+		return secretKey, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(*Claims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	return claims, nil
 }

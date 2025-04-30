@@ -7,27 +7,31 @@ import (
 
 func SetupRoutes(app *app.Application) *chi.Mux {
 	r := chi.NewRouter()
+	r.Group(func(r chi.Router) {
+		r.Use(app.Middleware.Authenticate)
+
+		r.Post("/expenses", app.Middleware.RequireUser(app.TransactionHandler.HandleCreateExpense))
+		r.Get("/expenses/{id}", app.Middleware.RequireUser(app.TransactionHandler.HandleGetExpenseByID))
+		r.Put("/expenses/{id}", app.Middleware.RequireUser(app.TransactionHandler.HandleUpdateExpense))
+		r.Delete("/expenses/{id}", app.Middleware.RequireUser(app.TransactionHandler.HandleDeleteExpense))
+		r.Get("/expenses", app.Middleware.RequireUser(app.TransactionHandler.HandleGetExpenses))
+		r.Get("/total-expenses", app.Middleware.RequireUser(app.TransactionHandler.HandleGetTotalExpenses))
+		r.Post("/incomes", app.Middleware.RequireUser(app.TransactionHandler.HandleCreateIncome))
+		r.Get("/incomes/{id}", app.Middleware.RequireUser(app.TransactionHandler.HandleGetIncomeByID))
+		r.Put("/incomes/{id}", app.Middleware.RequireUser(app.TransactionHandler.HandleUpdateIncome))
+		r.Delete("/incomes/{id}", app.Middleware.RequireUser(app.TransactionHandler.HandleDeleteIncome))
+		r.Get("/incomes", app.Middleware.RequireUser(app.TransactionHandler.HandleGetIncomes))
+		r.Get("/total-incomes", app.Middleware.RequireUser(app.TransactionHandler.HandleGetTotalIncomes))
+		r.Get("/transactions", app.Middleware.RequireUser(app.TransactionHandler.HandleGetTransactions))
+		r.Get("/categories", app.Middleware.RequireUser(app.TransactionHandler.HandleGetCategories))
+	})
 
 	r.Get("/health", app.HealthCheck)
 
-	r.Post("/expenses", app.TransactionHandler.HandleCreateExpense)
-	r.Get("/expenses/{id}", app.TransactionHandler.HandleGetExpenseByID)
-	r.Put("/expenses/{id}", app.TransactionHandler.HandleUpdateExpense)
-	r.Delete("/expenses/{id}", app.TransactionHandler.HandleDeleteExpense)
-	r.Get("/expenses", app.TransactionHandler.HandleGetExpenses)
-	r.Get("/total-expenses", app.TransactionHandler.HandleGetTotalExpenses)
+	r.Post("/register", app.UserHandler.HandleRegisterUser)
+	r.Post("/login", app.UserHandler.HandleLoginUser)
 
-	r.Post("/incomes", app.TransactionHandler.HandleCreateIncome)
-	r.Get("/incomes/{id}", app.TransactionHandler.HandleGetIncomeByID)
-	r.Put("/incomes/{id}", app.TransactionHandler.HandleUpdateIncome)
-	r.Delete("/incomes/{id}", app.TransactionHandler.HandleDeleteIncome)
-	r.Get("/incomes", app.TransactionHandler.HandleGetIncomes)
-	r.Get("/total-incomes", app.TransactionHandler.HandleGetTotalIncomes)
-
-	r.Get("/transactions", app.TransactionHandler.HandleGetTransactions)
 	// TODO: recurring expenses
-	// TODO: listing expenses by categories
-	// TODO: auth
 
 	return r
 }

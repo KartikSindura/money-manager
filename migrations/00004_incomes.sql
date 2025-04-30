@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS incomes (
   id BIGSERIAL PRIMARY KEY,
-  -- user_id
+  user_id BIGINT NOT NULL REFERENCES users(id),
   amount FLOAT NOT NULL,
   category_id INT REFERENCES categories(id),
   source TEXT,

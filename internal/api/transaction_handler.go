@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/KartikSindura/money/internal/middleware"
 	"github.com/KartikSindura/money/internal/store"
 	"github.com/KartikSindura/money/utils"
 )
@@ -43,6 +44,15 @@ func (h *TransactionHandler) HandleCreateExpense(w http.ResponseWriter, r *http.
 
 	category := &store.Category{Name: categoryName}
 
+	currentUser := middleware.GetUser(r)
+	if currentUser == nil {
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "must be logged in"})
+		return
+	}
+
+	category.UserID = currentUser.ID
+	expense.UserID = currentUser.ID
+
 	// get category id
 	category, err = h.categoryStore.FindOrCreateCategoryByName(category)
 	if err != nil {
@@ -75,12 +85,25 @@ func (h *TransactionHandler) HandleGetExpenseByID(w http.ResponseWriter, r *http
 		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "invalid id parameter"})
 		return
 	}
+
+	currentUser := middleware.GetUser(r)
+	if currentUser == nil {
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "must be logged in"})
+		return
+	}
+
 	expense, err := h.transactionStore.GetExpenseByID(id)
 	if err != nil {
 		h.logger.Printf("Error: HandleGetExpenseByID: %v", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting expense"})
 		return
 	}
+
+	if expense.UserID != currentUser.ID {
+		utils.WriteJSON(w, http.StatusForbidden, utils.Envelope{"error": "access denied"})
+		return
+	}
+
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"expense": expense})
 }
 
@@ -92,10 +115,21 @@ func (h *TransactionHandler) HandleUpdateExpense(w http.ResponseWriter, r *http.
 		return
 	}
 
+	currentUser := middleware.GetUser(r)
+	if currentUser == nil {
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "must be logged in"})
+		return
+	}
+
 	existingExpense, err := h.transactionStore.GetExpenseByID(expenseID)
 	if err != nil {
 		h.logger.Printf("Error: HandleUpdateExpense: %v", err)
 		utils.WriteJSON(w, http.StatusNotFound, utils.Envelope{"error": "cannot find expense"})
+		return
+	}
+
+	if existingExpense.UserID != currentUser.ID {
+		utils.WriteJSON(w, http.StatusForbidden, utils.Envelope{"error": "access denied"})
 		return
 	}
 
@@ -138,7 +172,8 @@ func (h *TransactionHandler) HandleUpdateExpense(w http.ResponseWriter, r *http.
 	}
 
 	category := &store.Category{
-		Name: categoryName,
+		UserID: currentUser.ID,
+		Name:   categoryName,
 	}
 	category, err = h.categoryStore.FindOrCreateCategoryByName(category)
 	if err != nil {
@@ -177,7 +212,30 @@ func (h *TransactionHandler) HandleDeleteExpense(w http.ResponseWriter, r *http.
 		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "invalid id parameter"})
 		return
 	}
+
+	currentUser := middleware.GetUser(r)
+	if currentUser == nil {
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "must be logged in"})
+		return
+	}
+
+	expense, err := h.transactionStore.GetExpenseByID(id)
+	if err != nil {
+		h.logger.Printf("Error: HandleDeleteExpense: %v", err)
+		utils.WriteJSON(w, http.StatusNotFound, utils.Envelope{"error": "expense not found"})
+		return
+	}
+	if expense.UserID != currentUser.ID {
+		utils.WriteJSON(w, http.StatusForbidden, utils.Envelope{"error": "access denied"})
+		return
+	}
+
 	err = h.transactionStore.DeleteExpenseByID(id)
+	if err == sql.ErrNoRows {
+		h.logger.Printf("Error: HandleDeleteExpense: %v", err)
+		utils.WriteJSON(w, http.StatusNotFound, utils.Envelope{"error": "expense not found"})
+		return
+	}
 	if err != nil {
 		h.logger.Printf("Error: HandleDeleteExpense: %v", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error deleting expense"})
@@ -187,8 +245,14 @@ func (h *TransactionHandler) HandleDeleteExpense(w http.ResponseWriter, r *http.
 }
 
 func (h *TransactionHandler) HandleGetExpenses(w http.ResponseWriter, r *http.Request) {
+	currentUser := middleware.GetUser(r)
+	if currentUser == nil {
+		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "must be logged in"})
+		return
+	}
+
 	limit, offset := utils.GetLimitOffset(r)
-	expenses, err := h.transactionStore.GetExpenses(limit, offset)
+	expenses, err := h.transactionStore.GetExpenses(currentUser.ID, limit, offset)
 	if err != nil {
 		h.logger.Printf("Error: HandleGetExpenses: %v", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting expenses"})
@@ -198,7 +262,12 @@ func (h *TransactionHandler) HandleGetExpenses(w http.ResponseWriter, r *http.Re
 }
 
 func (h *TransactionHandler) HandleGetTotalExpenses(w http.ResponseWriter, r *http.Request) {
-	totalExpenses, err := h.transactionStore.GetTotalExpenses()
+	currentUser := middleware.GetUser(r)
+	if currentUser == nil {
+		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "must be logged in"})
+		return
+	}
+	totalExpenses, err := h.transactionStore.GetTotalExpenses(currentUser.ID)
 	if err != nil {
 		h.logger.Printf("Error: HandleGetTotalExpenses: %v", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting total expenses"})
@@ -223,6 +292,15 @@ func (h *TransactionHandler) HandleCreateIncome(w http.ResponseWriter, r *http.R
 	category := &store.Category{
 		Name: categoryName,
 	}
+
+	currentUser := middleware.GetUser(r)
+	if currentUser == nil {
+		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "must be logged in"})
+		return
+	}
+	category.UserID = currentUser.ID
+	income.UserID = currentUser.ID
+
 	category, err = h.categoryStore.FindOrCreateCategoryByName(category)
 	if err != nil {
 		h.logger.Printf("Error: HandleCreateIncome: %v", err)
@@ -254,10 +332,23 @@ func (h *TransactionHandler) HandleGetIncomeByID(w http.ResponseWriter, r *http.
 		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "invalid id parameter"})
 		return
 	}
+
+	currentUser := middleware.GetUser(r)
+	if currentUser == nil {
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "must be logged in"})
+		return
+	}
+
 	income, err := h.transactionStore.GetIncomeByID(id)
+
 	if err != nil {
 		h.logger.Printf("Error: HandleGetIncomeByID: %v", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting income"})
+		return
+	}
+
+	if income.UserID != currentUser.ID {
+		utils.WriteJSON(w, http.StatusForbidden, utils.Envelope{"error": "access denied"})
 		return
 	}
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"income": income})
@@ -271,9 +362,25 @@ func (h *TransactionHandler) HandleUpdateIncome(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	currentUser := middleware.GetUser(r)
+	if currentUser == nil {
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "must be logged in"})
+		return
+	}
+
 	existingIncome, err := h.transactionStore.GetIncomeByID(id)
 	if err != nil {
 		h.logger.Printf("Error: HandleUpdateIncome: %v", err)
+		utils.WriteJSON(w, http.StatusNotFound, utils.Envelope{"error": "cannot find income"})
+		return
+	}
+
+	if existingIncome.UserID != currentUser.ID {
+		utils.WriteJSON(w, http.StatusForbidden, utils.Envelope{"error": "access denied"})
+		return
+	}
+
+	if existingIncome == nil {
 		utils.WriteJSON(w, http.StatusNotFound, utils.Envelope{"error": "cannot find income"})
 		return
 	}
@@ -312,7 +419,8 @@ func (h *TransactionHandler) HandleUpdateIncome(w http.ResponseWriter, r *http.R
 	}
 
 	category := &store.Category{
-		Name: categoryName,
+		UserID: currentUser.ID,
+		Name:   categoryName,
 	}
 	category, err = h.categoryStore.FindOrCreateCategoryByName(category)
 	if err != nil {
@@ -355,7 +463,30 @@ func (h *TransactionHandler) HandleDeleteIncome(w http.ResponseWriter, r *http.R
 		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "invalid id parameter"})
 		return
 	}
+
+	curentUser := middleware.GetUser(r)
+	if curentUser == nil {
+		utils.WriteJSON(w, http.StatusBadRequest, utils.Envelope{"error": "must be logged in"})
+		return
+	}
+
+	income, err := h.transactionStore.GetIncomeByID(id)
+	if err != nil {
+		h.logger.Printf("Error: HandleDeleteIncome: %v", err)
+		utils.WriteJSON(w, http.StatusNotFound, utils.Envelope{"error": "income not found"})
+		return
+	}
+
+	if income.UserID != curentUser.ID {
+		utils.WriteJSON(w, http.StatusForbidden, utils.Envelope{"error": "access denied"})
+		return
+	}
 	err = h.transactionStore.DeleteIncomeByID(id)
+	if err == sql.ErrNoRows {
+		h.logger.Printf("Error: HandleDeleteIncome: %v", err)
+		utils.WriteJSON(w, http.StatusNotFound, utils.Envelope{"error": "income not found"})
+		return
+	}
 	if err != nil {
 		h.logger.Printf("Error: HandleDeleteIncome: %v", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error deleting income"})
@@ -365,8 +496,13 @@ func (h *TransactionHandler) HandleDeleteIncome(w http.ResponseWriter, r *http.R
 }
 
 func (h *TransactionHandler) HandleGetIncomes(w http.ResponseWriter, r *http.Request) {
+	currentUser := middleware.GetUser(r)
+	if currentUser == nil {
+		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "must be logged in"})
+		return
+	}
 	limit, offset := utils.GetLimitOffset(r)
-	incomes, err := h.transactionStore.GetIncomes(limit, offset)
+	incomes, err := h.transactionStore.GetIncomes(currentUser.ID, limit, offset)
 	if err != nil {
 		h.logger.Printf("Error: HandleGetIncomes: %v", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting incomes"})
@@ -376,7 +512,12 @@ func (h *TransactionHandler) HandleGetIncomes(w http.ResponseWriter, r *http.Req
 }
 
 func (h *TransactionHandler) HandleGetTotalIncomes(w http.ResponseWriter, r *http.Request) {
-	totalIncomes, err := h.transactionStore.GetTotalIncomes()
+	currentUser := middleware.GetUser(r)
+	if currentUser == nil {
+		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "must be logged in"})
+		return
+	}
+	totalIncomes, err := h.transactionStore.GetTotalIncomes(currentUser.ID)
 	if err != nil {
 		h.logger.Printf("Error: HandleGetTotalIncomes: %v", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting total incomes"})
@@ -386,6 +527,11 @@ func (h *TransactionHandler) HandleGetTotalIncomes(w http.ResponseWriter, r *htt
 }
 
 func (h *TransactionHandler) HandleGetTransactions(w http.ResponseWriter, r *http.Request) {
+	currentUser := middleware.GetUser(r)
+	if currentUser == nil {
+		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "must be logged in"})
+		return
+	}
 	limit, offset := utils.GetLimitOffset(r)
 	from, to, month, year, _type, categoryName, err := utils.GetTransactionQueryParams(r)
 	if err != nil {
@@ -397,7 +543,7 @@ func (h *TransactionHandler) HandleGetTransactions(w http.ResponseWriter, r *htt
 	var categoryID *int64
 	if categoryName != nil {
 		var err error
-		categoryID, err = h.categoryStore.GetCategoryIDByName(categoryName)
+		categoryID, err = h.categoryStore.GetCategoryIDByName(categoryName, currentUser.ID)
 		if err == sql.ErrNoRows {
 			h.logger.Printf("Error: HandleGetTransactions: %v", err)
 			utils.WriteJSON(w, http.StatusNotFound, utils.Envelope{"error": "category not found"})
@@ -409,11 +555,26 @@ func (h *TransactionHandler) HandleGetTransactions(w http.ResponseWriter, r *htt
 			return
 		}
 	}
-	transactions, err := h.transactionStore.GetTransactions(limit, offset, from, to, month, year, _type, categoryID)
+	transactions, err := h.transactionStore.GetTransactions(currentUser.ID, limit, offset, from, to, month, year, _type, categoryID)
 	if err != nil {
 		h.logger.Printf("Error: HandleGetTransactions: %v", err)
 		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting transactions"})
 		return
 	}
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"transactions": transactions})
+}
+
+func (h *TransactionHandler) HandleGetCategories(w http.ResponseWriter, r *http.Request) {
+	currentUser := middleware.GetUser(r)
+	if currentUser == nil {
+		utils.WriteJSON(w, http.StatusUnauthorized, utils.Envelope{"error": "must be logged in"})
+		return
+	}
+	categories, err := h.categoryStore.GetCategories(currentUser.ID)
+	if err != nil {
+		h.logger.Printf("Error: HandleGetCategories: %v", err)
+		utils.WriteJSON(w, http.StatusInternalServerError, utils.Envelope{"error": "error getting categories"})
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"categories": categories})
 }
