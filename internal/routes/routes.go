@@ -30,8 +30,10 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 
 	r.Post("/register", app.UserHandler.HandleRegisterUser)
 	r.Post("/login", app.UserHandler.HandleLoginUser)
-
-	// TODO: recurring expenses
+	// TODO: total expenses filtered by month
+	// TODO: total incomes filtered by month
+	// TODO: recurring transactions
+	// TODO: budgeting
 
 	return r
 }
